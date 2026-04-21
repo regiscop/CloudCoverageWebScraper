@@ -2,6 +2,9 @@
 requests>=2.31
 schedule>=1.2
 
+# Scheduler (Improvement A)
+APScheduler>=3.10
+
 # Image processing
 Pillow>=10.0
 opencv-python>=4.8

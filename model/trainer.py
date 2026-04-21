@@ -7,6 +7,7 @@ Implements Levels 1 and 2 from §7.1:
 
 Temporal split (§7.2): train / val / test — NEVER random shuffle on time series.
 Evaluation: MAE, RMSE, skill score vs NWP baseline.
+Improvement C: Optuna walk-forward hyperparameter tuning (run_optuna_tuning).
 """
 
 import logging
@@ -15,11 +16,14 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
+import optuna
 import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from xgboost import XGBRegressor
 
 from config import FORECAST_HORIZONS_H
+
+optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -223,3 +227,106 @@ def run_training_pipeline(df: pd.DataFrame, model_version: str = "v1") -> pd.Dat
     metrics = evaluate(models, test)
     save_models(models, version=model_version)
     return metrics
+
+
+# ---------------------------------------------------------------------------
+# Improvement C — Optuna walk-forward hyperparameter tuning
+# ---------------------------------------------------------------------------
+
+def _walk_forward_mae(
+    df: pd.DataFrame,
+    horizon: int,
+    params: dict,
+    n_folds: int = 3,
+    fold_days: int = 7,
+) -> float:
+    """
+    Walk-forward cross-validation over `n_folds` consecutive test windows.
+    Returns mean MAE across folds for a single horizon.
+    """
+    target_col = f"target_h{horizon:02d}"
+    if target_col not in df.columns:
+        return float("inf")
+
+    df = df.sort_values("captured_at").dropna(subset=[target_col])
+    total_days = (df["captured_at"].max() - df["captured_at"].min()).days
+    # Reserve enough history for at least one training fold
+    if total_days < fold_days * (n_folds + 1):
+        return float("inf")
+
+    maes = []
+    for fold in range(n_folds):
+        test_end   = df["captured_at"].max() - timedelta(days=fold * fold_days)
+        test_start = test_end - timedelta(days=fold_days)
+        val_start  = test_start - timedelta(days=fold_days)
+
+        train = df[df["captured_at"] <  val_start]
+        val   = df[(df["captured_at"] >= val_start) & (df["captured_at"] < test_start)]
+        test  = df[(df["captured_at"] >= test_start) & (df["captured_at"] < test_end)]
+
+        if train.empty or val.empty or test.empty:
+            continue
+
+        model = XGBRegressor(
+            **params,
+            random_state=42,
+            n_jobs=-1,
+            eval_metric="mae",
+            early_stopping_rounds=20,
+        )
+        model.fit(
+            train[FEATURE_COLS].fillna(0), train[target_col],
+            eval_set=[(val[FEATURE_COLS].fillna(0), val[target_col])],
+            verbose=False,
+        )
+        y_pred = model.predict(test[FEATURE_COLS].fillna(0))
+        maes.append(mean_absolute_error(test[target_col].values, y_pred))
+
+    return float(np.mean(maes)) if maes else float("inf")
+
+
+def run_optuna_tuning(
+    df: pd.DataFrame,
+    horizon: int = 1,
+    n_trials: int = 50,
+    model_version: str = "v1_tuned",
+) -> dict:
+    """
+    Run Optuna hyperparameter search for a given horizon using walk-forward CV.
+    Trains and saves the best model for all horizons using the best params found.
+    Returns the best params dict.
+    """
+    df_targets = make_targets(df)
+
+    def objective(trial: optuna.Trial) -> float:
+        params = {
+            "n_estimators":     trial.suggest_int("n_estimators", 100, 800),
+            "max_depth":        trial.suggest_int("max_depth", 3, 9),
+            "learning_rate":    trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
+            "subsample":        trial.suggest_float("subsample", 0.5, 1.0),
+            "colsample_bytree": trial.suggest_float("colsample_bytree", 0.5, 1.0),
+            "min_child_weight": trial.suggest_int("min_child_weight", 1, 10),
+            "gamma":            trial.suggest_float("gamma", 0.0, 5.0),
+            "reg_alpha":        trial.suggest_float("reg_alpha", 1e-4, 10.0, log=True),
+            "reg_lambda":       trial.suggest_float("reg_lambda", 1e-4, 10.0, log=True),
+        }
+        return _walk_forward_mae(df_targets, horizon, params)
+
+    study = optuna.create_study(direction="minimize")
+    study.optimize(objective, n_trials=n_trials, show_progress_bar=False)
+
+    best_params = study.best_params
+    logger.info("Optuna H+%02d best MAE=%.4f  params=%s", horizon, study.best_value, best_params)
+
+    # Retrain all horizons with the best params found
+    train, val, test = temporal_split(df_targets)
+    models = train_xgboost(
+        train, val,
+        n_estimators=best_params["n_estimators"],
+        max_depth=best_params["max_depth"],
+        learning_rate=best_params["learning_rate"],
+    )
+    metrics = evaluate(models, test)
+    save_models(models, version=model_version)
+
+    return best_params

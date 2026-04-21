@@ -4,6 +4,7 @@ Module 6 — Output REST API (FastAPI).
 Exposes solar cloud-coverage forecasts via HTTP.
 
 Endpoints:
+  GET /health                    → system health & data freshness (Improvement D)
   GET /forecast/{zone}           → latest 48-h forecast for a zone
   GET /forecast/{zone}/{horizon} → single horizon point
   GET /zones                     → list of configured zones
@@ -11,14 +12,15 @@ Endpoints:
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 from config import GRID_POINTS, FORECAST_HORIZONS_H
 from db.ingestion import load_latest_forecasts
-from model.trainer import load_models, extrapolate_cloud_motion
+from model.trainer import load_models, extrapolate_cloud_motion, MODEL_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +76,86 @@ def _db_rows_to_forecast(rows, zone: str) -> ZoneForecast:
         produced_at=datetime.now(tz=timezone.utc),
         zone=zone,
         forecast=points,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Improvement D — Health-check endpoint
+# ---------------------------------------------------------------------------
+
+class HealthStatus(BaseModel):
+    status: str                          # "ok" | "degraded" | "unavailable"
+    checked_at: datetime
+    last_scrape_at: datetime | None
+    scrape_age_minutes: float | None
+    last_weather_at: datetime | None
+    weather_age_minutes: float | None
+    model_available: bool
+    model_version: str | None
+    zones_with_recent_forecasts: list[str]
+
+
+@app.get("/health", response_model=HealthStatus)
+def health_check() -> HealthStatus:
+    """
+    Return system health: last scrape timestamp, NWP freshness, model availability.
+    status = 'ok'          → all data fresh (< 30 min scrape, < 90 min weather)
+    status = 'degraded'    → some data stale but model and at least one zone available
+    status = 'unavailable' → no model or no data at all
+    """
+    from db.models import SatelliteImage, WeatherData, SolarForecast, get_session
+    now = datetime.now(tz=timezone.utc)
+    session = get_session()
+
+    try:
+        last_sat = (
+            session.query(SatelliteImage.captured_at)
+            .order_by(SatelliteImage.captured_at.desc())
+            .first()
+        )
+        last_wx = (
+            session.query(WeatherData.captured_at)
+            .order_by(WeatherData.captured_at.desc())
+            .first()
+        )
+        recent_threshold = now - timedelta(hours=1)
+        zones_with_fc = [
+            row[0]
+            for row in session.query(SolarForecast.zone_name)
+            .filter(SolarForecast.produced_at >= recent_threshold)
+            .distinct()
+            .all()
+        ]
+    finally:
+        session.close()
+
+    scrape_ts  = last_sat[0] if last_sat else None
+    weather_ts = last_wx[0]  if last_wx  else None
+
+    scrape_age  = (now - scrape_ts).total_seconds()  / 60 if scrape_ts  else None
+    weather_age = (now - weather_ts).total_seconds() / 60 if weather_ts else None
+
+    model_file = MODEL_DIR / "xgboost_v1.pkl"
+    model_ok   = model_file.exists()
+    model_ver  = "v1" if model_ok else None
+
+    if not model_ok or scrape_ts is None:
+        status = "unavailable"
+    elif (scrape_age or 999) > 30 or (weather_age or 999) > 90:
+        status = "degraded"
+    else:
+        status = "ok"
+
+    return HealthStatus(
+        status=status,
+        checked_at=now,
+        last_scrape_at=scrape_ts,
+        scrape_age_minutes=scrape_age,
+        last_weather_at=weather_ts,
+        weather_age_minutes=weather_age,
+        model_available=model_ok,
+        model_version=model_ver,
+        zones_with_recent_forecasts=sorted(zones_with_fc),
     )
 
 

@@ -6,6 +6,9 @@ and persists them locally with a JSON metadata sidecar.
 
 Rate limiting: SAT24_MIN_REQUEST_INTERVAL_S seconds between HTTP calls
 as required by §10 of the project specifications.
+
+Improvement F: nocturnal fallback — VIS channel is automatically skipped
+when solar elevation < 0° for the region centre; only IR + NWP are used.
 """
 
 import json
@@ -14,6 +17,8 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pvlib
+import pandas as pd
 import requests
 
 from config import (
@@ -25,9 +30,24 @@ from config import (
     SAT24_MIN_REQUEST_INTERVAL_S,
 )
 
+# Geographic centre of the target region (Belgium)
+_REGION_LAT = 50.5
+_REGION_LON = 4.5
+
 logger = logging.getLogger(__name__)
 
 _HEADERS = {"User-Agent": "Mozilla/5.0 (compatible; SolarForecastScraper/0.1)"}
+
+
+def is_daytime(dt: datetime | None = None) -> bool:
+    """Return True if the sun is above the horizon at the region centre."""
+    if dt is None:
+        dt = datetime.now(tz=timezone.utc)
+    location = pvlib.location.Location(latitude=_REGION_LAT, longitude=_REGION_LON, tz="UTC")
+    times = pd.DatetimeIndex([dt])
+    solar_pos = location.get_solarposition(times)
+    elevation = float(solar_pos["elevation"].iloc[0])
+    return elevation > 0.0
 
 
 def build_timestamp(dt: datetime) -> str:
@@ -79,13 +99,22 @@ def scrape_once(ts: str | None = None) -> list[Path]:
     """
     Fetch all configured tiles for all channels at timestamp `ts`
     (defaults to now floored to 15 min).
-    Returns list of saved image paths.
+
+    Improvement F — nocturnal fallback:
+    VIS channel is skipped at night (solar elevation ≤ 0); only IR is fetched.
     """
+    now = datetime.now(tz=timezone.utc)
     if ts is None:
-        ts = build_timestamp(datetime.now(tz=timezone.utc))
+        ts = build_timestamp(now)
+
+    night = not is_daytime(now)
+    if night:
+        logger.info("Night-time detected — skipping VIS channel, IR only")
 
     saved: list[Path] = []
     for channel_name, channel_path in CHANNELS.items():
+        if night and channel_name == "visible":
+            continue
         for tile in TILES:
             img = fetch_tile(channel_path, ts, tile)
             if img:
