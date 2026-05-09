@@ -56,7 +56,6 @@ def _load_training_data() -> "pd.DataFrame":
         logger.error("No training data. Run 'backfill' and collect sat images first.")
         sys.exit(1)
 
-    import pandas as pd
     return pd.concat(frames, ignore_index=True)
 
 

@@ -7,6 +7,9 @@ Predicts solar production over the next 24–48 hours for Belgium and neighbouri
 
 ---
 
+> See [`STRATEGY_AND_PLANNING.md`](STRATEGY_AND_PLANNING.md) for the active
+> action plan and audit findings.
+
 ## Architecture
 
 ```
@@ -62,6 +65,9 @@ python main.py serve
 | `train`           | Train XGBoost models from collected features       |
 | `serve`           | Start FastAPI server (default: port 8000)          |
 | `init-db`         | Create tables via SQLAlchemy (non-TimescaleDB)     |
+| `worker`          | Process pending images into cloud features          |
+| `scheduler`       | Run the integrated APScheduler pipeline             |
+| `tune`            | Optuna walk-forward hyperparameter search           |
 
 ---
 

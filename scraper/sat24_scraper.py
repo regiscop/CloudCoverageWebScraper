@@ -29,6 +29,7 @@ from config import (
     SCRAPE_INTERVAL_MINUTES,
     SAT24_MIN_REQUEST_INTERVAL_S,
 )
+from db.ingestion import ingest_satellite_metadata
 
 # Geographic centre of the target region (Belgium)
 _REGION_LAT = 50.5
@@ -50,10 +51,16 @@ def is_daytime(dt: datetime | None = None) -> bool:
     return elevation > 0.0
 
 
+def floor_to_slot(dt: datetime) -> datetime:
+    """Return `dt` floored to the nearest 15-minute slot, with seconds zeroed."""
+    floored_minutes = (dt.minute // 15) * 15
+    return dt.replace(minute=floored_minutes, second=0, microsecond=0)
+
+
 def build_timestamp(dt: datetime) -> str:
     """Return YYYYMMDDHHMI string floored to the nearest 15-minute slot."""
-    floored_minutes = (dt.minute // 15) * 15
-    return dt.strftime(f"%Y%m%d%H{floored_minutes:02d}")
+    floored = floor_to_slot(dt)
+    return floored.strftime("%Y%m%d%H%M")
 
 
 def fetch_tile(channel: str, timestamp: str, tile: dict) -> bytes | None:
@@ -104,6 +111,7 @@ def scrape_once(ts: str | None = None) -> list[Path]:
     VIS channel is skipped at night (solar elevation ≤ 0); only IR is fetched.
     """
     now = datetime.now(tz=timezone.utc)
+    captured_at = floor_to_slot(now)
     if ts is None:
         ts = build_timestamp(now)
 
@@ -121,6 +129,17 @@ def scrape_once(ts: str | None = None) -> list[Path]:
                 path = save_tile(img, channel_name, ts, tile)
                 saved.append(path)
                 logger.info("Saved %s", path)
+                try:
+                    ingest_satellite_metadata(
+                        channel=channel_name,
+                        captured_at=captured_at,
+                        tile=tile,
+                        file_path=path,
+                    )
+                except Exception:
+                    # DB outage must not stop the scrape loop — files on disk
+                    # are the source of truth and can be re-ingested later.
+                    logger.exception("Failed to persist tile metadata for %s", path)
             # Courteous rate limiting between individual tile requests
             time.sleep(SAT24_MIN_REQUEST_INTERVAL_S)
 

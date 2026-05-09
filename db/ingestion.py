@@ -10,6 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy.dialects.postgresql import insert as pg_insert
+from sqlalchemy.exc import IntegrityError
 
 from db.models import (
     CloudFeature, SatelliteImage, SolarForecast, WeatherData, get_session,
@@ -25,9 +27,26 @@ def ingest_satellite_metadata(
     file_path: Path,
     cloud_index: float | None = None,
     cloud_std: float | None = None,
-) -> None:
+) -> bool:
+    """Insert one satellite image row. Idempotent: returns False if a row for
+    this (captured_at, channel, zoom_level, tile_x1, tile_y1) already exists.
+    """
     session = get_session()
     try:
+        existing = (
+            session.query(SatelliteImage.id)
+            .filter(
+                SatelliteImage.captured_at == captured_at,
+                SatelliteImage.channel == channel,
+                SatelliteImage.zoom_level == tile["zoom"],
+                SatelliteImage.tile_x1 == tile["x1"],
+                SatelliteImage.tile_y1 == tile["y1"],
+            )
+            .first()
+        )
+        if existing is not None:
+            return False
+
         row = SatelliteImage(
             captured_at=captured_at,
             channel=channel,
@@ -41,47 +60,65 @@ def ingest_satellite_metadata(
             cloud_std=cloud_std,
         )
         session.add(row)
-        session.commit()
+        try:
+            session.commit()
+        except IntegrityError:
+            # Concurrent insert won the race — treat as a no-op.
+            session.rollback()
+            return False
         logger.debug("Ingested satellite metadata id=%s", row.id)
+        return True
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
+
+
+_WEATHER_COL_MAP = {
+    "captured_at":      "captured_at",
+    "zone_name":        "zone_name",
+    "cloud_cover":      "cloud_cover",
+    "cloud_cover_low":  "cloud_cover_low",
+    "cloud_cover_mid":  "cloud_cover_mid",
+    "cloud_cover_high": "cloud_cover_high",
+    "shortwave_radiation": "ghi",
+    "direct_radiation": "direct_rad",
+    "diffuse_radiation": "diffuse_rad",
+    "temperature_2m":   "temperature",
+    "wind_speed_10m":   "wind_speed",
+    "wind_direction_10m": "wind_dir",
+    "precipitation":    "precipitation",
+    "source":           "source",
+}
 
 
 def ingest_weather_dataframe(df: pd.DataFrame) -> int:
     """Bulk-insert an Open-Meteo DataFrame; returns number of rows inserted."""
+    if df.empty:
+        return 0
+
+    records = []
+    for _, r in df.iterrows():
+        record = {
+            db_col: r.get(src_col)
+            for src_col, db_col in _WEATHER_COL_MAP.items()
+            if src_col in df.columns
+        }
+        record.setdefault("source", r.get("source", "forecast"))
+        records.append(record)
+
     session = get_session()
-    rows_inserted = 0
     try:
-        for _, r in df.iterrows():
-            row = WeatherData(
-                captured_at=r["captured_at"],
-                zone_name=r.get("zone_name"),
-                cloud_cover=r.get("cloud_cover"),
-                cloud_cover_low=r.get("cloud_cover_low"),
-                cloud_cover_mid=r.get("cloud_cover_mid"),
-                cloud_cover_high=r.get("cloud_cover_high"),
-                ghi=r.get("shortwave_radiation"),
-                direct_rad=r.get("direct_radiation"),
-                diffuse_rad=r.get("diffuse_radiation"),
-                temperature=r.get("temperature_2m"),
-                wind_speed=r.get("wind_speed_10m"),
-                wind_dir=r.get("wind_direction_10m"),
-                precipitation=r.get("precipitation"),
-                source=r.get("source", "forecast"),
-            )
-            session.add(row)
-            rows_inserted += 1
+        session.bulk_insert_mappings(WeatherData, records)
         session.commit()
-        logger.info("Ingested %d weather rows", rows_inserted)
+        logger.info("Ingested %d weather rows", len(records))
     except Exception:
         session.rollback()
         raise
     finally:
         session.close()
-    return rows_inserted
+    return len(records)
 
 
 def ingest_cloud_features(features: dict) -> None:
@@ -96,6 +133,30 @@ def ingest_cloud_features(features: dict) -> None:
         raise
     finally:
         session.close()
+
+
+def ingest_cloud_features_bulk(records: list[dict], session=None) -> int:
+    """Bulk-insert cloud feature records. If `session` is provided, reuses it
+    and does NOT commit (caller controls the transaction); otherwise opens its
+    own session and commits.
+    """
+    if not records:
+        return 0
+
+    own_session = session is None
+    sess = session or get_session()
+    try:
+        sess.bulk_insert_mappings(CloudFeature, records)
+        if own_session:
+            sess.commit()
+        return len(records)
+    except Exception:
+        if own_session:
+            sess.rollback()
+        raise
+    finally:
+        if own_session:
+            sess.close()
 
 
 def ingest_forecast(forecast: dict) -> None:
@@ -149,13 +210,30 @@ def load_weather_data(zone_name: str, start: datetime, end: datetime) -> pd.Data
 
 
 def load_latest_forecasts(zone_name: str, limit: int = 48) -> pd.DataFrame:
-    """Return the most recent `limit` forecast rows for a zone."""
+    """Return the most recent forecast run for a zone, ordered by valid_at asc.
+
+    Filters on the latest `produced_at` so callers always see a coherent run
+    rather than a mix of rows from successive prediction triggers.
+    """
     session = get_session()
     try:
+        latest_produced_at = (
+            session.query(SolarForecast.produced_at)
+            .filter(SolarForecast.zone_name == zone_name)
+            .order_by(SolarForecast.produced_at.desc())
+            .limit(1)
+            .scalar()
+        )
+        if latest_produced_at is None:
+            return pd.DataFrame()
+
         q = (
             session.query(SolarForecast)
-            .filter(SolarForecast.zone_name == zone_name)
-            .order_by(SolarForecast.valid_at.desc())
+            .filter(
+                SolarForecast.zone_name == zone_name,
+                SolarForecast.produced_at == latest_produced_at,
+            )
+            .order_by(SolarForecast.valid_at.asc())
             .limit(limit)
         )
         return pd.read_sql(q.statement, session.bind)
