@@ -6,7 +6,7 @@ Used by the ingestion pipeline and the output API.
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger, Boolean, Column, Float, Integer, String, Text,
+    BigInteger, Boolean, Column, Float, Index, Integer, String, Text,
     create_engine,
 )
 from sqlalchemy.dialects.postgresql import TIMESTAMP
@@ -34,6 +34,14 @@ class SatelliteImage(Base):
     cloud_index = Column(Float)
     cloud_std   = Column(Float)
     processed   = Column(Boolean, default=False)
+
+    __table_args__ = (
+        Index(
+            "idx_sat_unique_tile",
+            "captured_at", "channel", "zoom_level", "tile_x1", "tile_y1",
+            unique=True,
+        ),
+    )
 
 
 class CloudFeature(Base):

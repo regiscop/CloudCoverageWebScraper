@@ -7,16 +7,16 @@ services:
     image: timescale/timescaledb:latest-pg16
     restart: unless-stopped
     environment:
-      POSTGRES_DB: solar_forecast
-      POSTGRES_USER: solar
-      POSTGRES_PASSWORD: solar_secret
+      POSTGRES_DB: ${POSTGRES_DB:-solar_forecast}
+      POSTGRES_USER: ${POSTGRES_USER:-solar}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
     ports:
       - "5432:5432"
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U solar -d solar_forecast"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-solar} -d ${POSTGRES_DB:-solar_forecast}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -28,7 +28,7 @@ services:
     command: python main.py scheduler
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://solar:solar_secret@db:5432/solar_forecast
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solar}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:-solar_forecast}
     volumes:
       - rawdata:/app/data/raw
       - models:/app/models
@@ -43,7 +43,7 @@ services:
     command: python main.py serve
     env_file: .env
     environment:
-      DATABASE_URL: postgresql://solar:solar_secret@db:5432/solar_forecast
+      DATABASE_URL: postgresql://${POSTGRES_USER:-solar}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:-solar_forecast}
       API_HOST: 0.0.0.0
       API_PORT: "8000"
     volumes:

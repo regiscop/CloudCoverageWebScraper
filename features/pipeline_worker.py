@@ -14,13 +14,13 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+import cv2
 import pandas as pd
 
 from config import DATA_DIR, GRID_POINTS, TILES
-from db.ingestion import ingest_cloud_features, ingest_satellite_metadata
+from db.ingestion import ingest_cloud_features_bulk
 from db.models import SatelliteImage, get_session
 from features.image_processor import (
-    build_feature_vector,
     compute_cloud_index,
     load_grayscale,
     compute_optical_flow,
@@ -72,11 +72,23 @@ def _find_previous_vis(session, captured_at: datetime, tile_key: str) -> str | N
     return row.file_path if row else None
 
 
+def _whole_image_mean(img_path: Path) -> float:
+    """Mean intensity over the full image, normalised to [0, 1]."""
+    from PIL import Image
+    import numpy as np
+    arr = np.array(Image.open(img_path).convert("L"))
+    return float(arr.mean() / 255.0)
+
+
 def process_image(record: SatelliteImage, session) -> int:
     """
     Process a single satellite image record: compute cloud index per zone,
     optical flow vs previous frame, and insert into cloud_features.
     Returns number of feature rows inserted.
+
+    All cloud_features rows for this image are bulk-inserted in a single
+    statement and committed alongside the SatelliteImage update — one
+    transaction per image instead of one per zone.
     """
     img_path = Path(record.file_path)
     if not img_path.exists():
@@ -85,8 +97,8 @@ def process_image(record: SatelliteImage, session) -> int:
 
     tile_key = f"z{record.zoom_level}_{record.tile_x1}_{record.tile_y1}"
     is_vis = record.channel == "visible"
-    rows_inserted = 0
 
+    records: list[dict] = []
     for point in GRID_POINTS:
         zone = point["name"]
         bbox = ZONE_PIXEL_BBOXES.get(zone)
@@ -95,21 +107,19 @@ def process_image(record: SatelliteImage, session) -> int:
 
         idx = compute_cloud_index(img_path, bbox)
 
-        # Optical flow only for VIS channel
         motion_u, motion_v = None, None
         if is_vis:
             prev_path = _find_previous_vis(session, record.captured_at, tile_key)
             if prev_path and Path(prev_path).exists():
                 frame_t0 = load_grayscale(prev_path)
                 frame_t1 = load_grayscale(img_path)
-                import cv2
                 if frame_t0.shape != frame_t1.shape:
                     frame_t1 = cv2.resize(
                         frame_t1, (frame_t0.shape[1], frame_t0.shape[0])
                     )
                 motion_u, motion_v = compute_optical_flow(frame_t0, frame_t1, bbox)
 
-        feature = {
+        records.append({
             "captured_at":    record.captured_at,
             "zone_name":      zone,
             "cloud_index":    idx["mean"] if is_vis else None,
@@ -118,16 +128,15 @@ def process_image(record: SatelliteImage, session) -> int:
             "motion_u":       motion_u,
             "motion_v":       motion_v,
             "channel":        record.channel,
-        }
-        ingest_cloud_features(feature)
-        rows_inserted += 1
+        })
 
-    # Mark image as processed and update cloud_index summary
+    ingest_cloud_features_bulk(records, session=session)
+
     record.processed = True
-    record.cloud_index = compute_cloud_index(img_path, (0, 0, 999, 999))["mean"]
+    record.cloud_index = _whole_image_mean(img_path)
     session.commit()
 
-    return rows_inserted
+    return len(records)
 
 
 def process_pending_images() -> int:
