@@ -2,10 +2,22 @@
 
 Predicts solar production over the next 24–48 hours for Belgium and neighbouring countries by combining satellite cloud imagery (sat24.com) with NWP data from Open-Meteo.
 
-**Geographic scope:** Belgium · Netherlands · Northern France · Luxembourg · Western Germany  
+**Geographic scope:** Belgium · Netherlands · Northern France · Luxembourg · Western Germany
 **Forecast horizons:** H+1, H+3, H+6, H+12, H+24, H+48
+**Execution mode:** 100% local on a single SPM B2B BE workstation — SQLite by default, no Postgres or Docker required. PostgreSQL/TimescaleDB and Docker remain available as optional advanced modes.
+
+> 📖 **Full bilingual (FR/EN) usage guide:** see [`README.html`](README.html)
+> 📊 **Project audit / summary:** see [`PROJECT_SUMMARY.html`](PROJECT_SUMMARY.html)
 
 ---
+
+> **Docs:**
+> [Architecture](docs/ARCHITECTURE.md) ·
+> [Configuration](docs/CONFIGURATION.md) ·
+> [Operations](docs/OPERATIONS.md) ·
+> [API](docs/API.md) ·
+> [Development](docs/DEVELOPMENT.md) ·
+> [Strategy & planning](STRATEGY_AND_PLANNING.md)
 
 ## Architecture
 
@@ -20,33 +32,39 @@ Module 6 — Output       FastAPI REST endpoint
 
 ---
 
-## Quick start
+## Quick start (local mode — recommended)
 
 ```bash
 # 1. Install dependencies
 pip install -r requirements.txt
 
-# 2. Copy and edit environment variables
+# 2. Copy environment file (defaults are local-first, no edits required)
 cp .env.example .env
 
-# 3. Initialise database (PostgreSQL must be running)
-#    For TimescaleDB:
-psql -U <user> -d <db> -f db/schema.sql
-#    For plain SQLAlchemy (no hypertables):
+# 3. Create the local SQLite database
 python main.py init-db
 
-# 4. Backfill 90 days of NWP data for training
+# 4. Backfill 90 days of NWP data
 python main.py backfill
 
-# 5. Start the scraper loop (runs every 15 min)
-python main.py scrape
+# 5. Run the all-in-one scheduler (scrape + features + forecast)
+python main.py scheduler &
 
-# 6. Once enough image data is collected, train models
-python main.py train
-
-# 7. Start the forecast API
+# 6. Start the local forecast API
 python main.py serve
-# → http://localhost:8000/docs
+# → http://127.0.0.1:8000/docs
+
+# 7. After a few days of data collection, train the model
+python main.py train
+```
+
+For full bilingual instructions and screenshots, open [`README.html`](README.html) in a browser.
+
+### Optional: PostgreSQL / TimescaleDB mode
+
+```bash
+psql -U <user> -d <db> -f db/schema.sql
+# Then set DATABASE_URL=postgresql://… in .env
 ```
 
 ---
@@ -62,6 +80,9 @@ python main.py serve
 | `train`           | Train XGBoost models from collected features       |
 | `serve`           | Start FastAPI server (default: port 8000)          |
 | `init-db`         | Create tables via SQLAlchemy (non-TimescaleDB)     |
+| `worker`          | Process pending images into cloud features          |
+| `scheduler`       | Run the integrated APScheduler pipeline             |
+| `tune`            | Optuna walk-forward hyperparameter search           |
 
 ---
 

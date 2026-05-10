@@ -6,13 +6,17 @@ Used by the ingestion pipeline and the output API.
 from datetime import datetime
 
 from sqlalchemy import (
-    BigInteger, Boolean, Column, Float, Integer, String, Text,
+    BigInteger, Boolean, Column, DateTime, Float, Integer, String, Text,
     create_engine,
 )
-from sqlalchemy.dialects.postgresql import TIMESTAMP
 from sqlalchemy.orm import DeclarativeBase, Session
 
 from config import DATABASE_URL
+
+# Use the portable DateTime(timezone=True) instead of the postgres-only
+# TIMESTAMP(timezone=True). Works identically with SQLite (local default)
+# and PostgreSQL/TimescaleDB.
+TIMESTAMP = DateTime
 
 
 class Base(DeclarativeBase):
@@ -34,6 +38,14 @@ class SatelliteImage(Base):
     cloud_index = Column(Float)
     cloud_std   = Column(Float)
     processed   = Column(Boolean, default=False)
+
+    __table_args__ = (
+        Index(
+            "idx_sat_unique_tile",
+            "captured_at", "channel", "zoom_level", "tile_x1", "tile_y1",
+            unique=True,
+        ),
+    )
 
 
 class CloudFeature(Base):
@@ -84,6 +96,11 @@ class SolarForecast(Base):
 
 
 def get_engine():
+    # SQLite needs the parent directory to exist before connect.
+    if DATABASE_URL.startswith("sqlite:///"):
+        from pathlib import Path
+        db_path = DATABASE_URL.replace("sqlite:///", "", 1)
+        Path(db_path).parent.mkdir(parents=True, exist_ok=True)
     return create_engine(DATABASE_URL)
 
 

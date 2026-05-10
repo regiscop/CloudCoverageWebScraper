@@ -72,8 +72,13 @@ def _db_rows_to_forecast(rows, zone: str) -> ZoneForecast:
         )
         for _, row in rows.iterrows()
     ]
+    produced_at = (
+        rows["produced_at"].iloc[0]
+        if "produced_at" in rows.columns and not rows.empty
+        else datetime.now(tz=timezone.utc)
+    )
     return ZoneForecast(
-        produced_at=datetime.now(tz=timezone.utc),
+        produced_at=produced_at,
         zone=zone,
         forecast=points,
     )
@@ -191,15 +196,20 @@ def get_forecast_horizon(zone: str, horizon_h: int) -> ForecastPoint:
             status_code=400,
             detail=f"Horizon {horizon_h}h not available. Choose from {FORECAST_HORIZONS_H}.",
         )
-    rows = load_latest_forecasts(zone, limit=len(FORECAST_HORIZONS_H))
+    rows = load_latest_forecasts(zone, limit=len(FORECAST_HORIZONS_H) * 2)
     if rows.empty:
         raise HTTPException(status_code=404, detail="No forecast data found.")
 
     forecast = _db_rows_to_forecast(rows, zone)
     if not forecast.forecast:
         raise HTTPException(status_code=404, detail="No forecast points found.")
-    # Return the point closest to the requested horizon
-    return forecast.forecast[0]
+
+    target = forecast.produced_at + timedelta(hours=horizon_h)
+    closest = min(
+        forecast.forecast,
+        key=lambda p: abs((p.valid_at - target).total_seconds()),
+    )
+    return closest
 
 
 class TriggerResponse(BaseModel):
