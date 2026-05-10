@@ -139,6 +139,7 @@
   <h1>Solar Cloud Coverage Forecaster</h1>
   <p>Prévision de production solaire à H+1 → H+48 — couplage imagerie satellite + NWP</p>
   <p><strong>Zones :</strong> Belgique · Pays-Bas · Nord de la France · Luxembourg · Ouest de l'Allemagne</p>
+  <p><strong>Mode d'exécution :</strong> 100 % local sur le poste d'un membre de l'équipe SPM B2B BE (téléchargement, entraînement et inférence).</p>
 </header>
 
 <main>
@@ -159,16 +160,31 @@
     Les images sont transformées en <em>cloud index</em> + vecteurs de mouvement (flot optique)
     qui alimentent un modèle <strong>XGBoost multi-horizons</strong> exposé via une API REST FastAPI.
   </p>
+  <h3>Cible d'exécution — équipe SPM B2B BE</h3>
+  <p>
+    Le projet est <strong>local-first</strong> : un membre de l'équipe SPM B2B BE peut, depuis son
+    propre poste de travail (Windows, macOS ou Linux),&nbsp;:
+  </p>
+  <ul>
+    <li><strong>Télécharger</strong> les tuiles satellite dans <code>data/raw/</code></li>
+    <li><strong>Stocker</strong> les métadonnées + features + prévisions dans une base <strong>SQLite</strong> (<code>data/solar_forecast.db</code>) — aucune installation Postgres ni Docker requise</li>
+    <li><strong>Entraîner</strong> le modèle XGBoost en local (CPU suffisant, &lt;&nbsp;5 min sur 90 j de données)</li>
+    <li><strong>Faire tourner</strong> l'inférence et l'API FastAPI sur <code>127.0.0.1:8000</code></li>
+  </ul>
+  <p>
+    PostgreSQL/TimescaleDB et Docker restent disponibles en option pour un déploiement partagé,
+    mais ne sont plus la voie par défaut.
+  </p>
   <div class="meta">
     <span class="pill">Python 3.11</span>
+    <span class="pill">SQLite (par défaut)</span>
     <span class="pill">FastAPI</span>
     <span class="pill">XGBoost</span>
-    <span class="pill">PostgreSQL / TimescaleDB</span>
     <span class="pill">OpenCV</span>
     <span class="pill">pvlib</span>
     <span class="pill">Optuna</span>
     <span class="pill">APScheduler</span>
-    <span class="pill">Docker Compose</span>
+    <span class="pill">PostgreSQL / Docker (optionnels)</span>
   </div>
 </section>
 

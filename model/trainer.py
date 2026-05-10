@@ -21,7 +21,7 @@ import pandas as pd
 from sklearn.metrics import mean_absolute_error, mean_squared_error
 from xgboost import XGBRegressor
 
-from config import FORECAST_HORIZONS_H
+from config import FORECAST_HORIZONS_H, MODEL_DIR as _MODEL_DIR_CFG
 
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
@@ -43,7 +43,7 @@ FEATURE_COLS = [
 ]
 
 TARGET_COL = "cloud_index_vis"  # predict future cloud index
-MODEL_DIR  = Path("models")
+MODEL_DIR  = Path(_MODEL_DIR_CFG)
 
 
 # ---------------------------------------------------------------------------
