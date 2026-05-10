@@ -3,11 +3,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-DATABASE_URL = os.getenv("DATABASE_URL", "postgresql://user:password@localhost:5432/solar_forecast")
+# Local-first default: SQLite file in ./data/. No Postgres install required for
+# a single-user run on an SPM B2B BE workstation. Override DATABASE_URL in .env
+# to point at a Postgres/TimescaleDB instance for shared / production setups.
+DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///data/solar_forecast.db")
 DATA_DIR = os.getenv("DATA_DIR", "data/raw")
+MODEL_DIR = os.getenv("MODEL_DIR", "models")
 SCRAPE_INTERVAL_MINUTES = int(os.getenv("SCRAPE_INTERVAL_MINUTES", "15"))
 
-API_HOST = os.getenv("API_HOST", "0.0.0.0")
+API_HOST = os.getenv("API_HOST", "127.0.0.1")
 API_PORT = int(os.getenv("API_PORT", "8000"))
 
 # Sat24 tile API base
