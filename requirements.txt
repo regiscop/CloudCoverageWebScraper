@@ -1,6 +1,5 @@
 # Scraping & HTTP
 requests>=2.31
-schedule>=1.2
 
 # Scheduler (Improvement A)
 APScheduler>=3.10

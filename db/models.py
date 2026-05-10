@@ -39,6 +39,14 @@ class SatelliteImage(Base):
     cloud_std   = Column(Float)
     processed   = Column(Boolean, default=False)
 
+    __table_args__ = (
+        Index(
+            "idx_sat_unique_tile",
+            "captured_at", "channel", "zoom_level", "tile_x1", "tile_y1",
+            unique=True,
+        ),
+    )
+
 
 class CloudFeature(Base):
     __tablename__ = "cloud_features"
