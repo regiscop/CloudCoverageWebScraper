@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Cloud Coverage Forecaster — Résumé du projet</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --bg-soft: #1e293b;
+    --card: #ffffff;
+    --text: #0f172a;
+    --muted: #475569;
+    --accent: #2563eb;
+    --green: #16a34a;
+    --orange: #ea580c;
+    --red: #dc2626;
+    --yellow: #ca8a04;
+    --border: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, sans-serif;
+    margin: 0;
+    background: #f1f5f9;
+    color: var(--text);
+    line-height: 1.6;
+  }
+  header {
+    background: linear-gradient(135deg, #0f172a 0%, #2563eb 100%);
+    color: #fff;
+    padding: 48px 32px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 8px; font-size: 2.2rem; }
+  header p  { margin: 4px 0; opacity: 0.9; }
+  main { max-width: 1100px; margin: -24px auto 48px; padding: 0 24px; }
+  section {
+    background: var(--card);
+    border-radius: 10px;
+    padding: 24px 32px;
+    margin: 16px 0;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08);
+  }
+  h2 {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    color: var(--bg);
+    margin-top: 0;
+  }
+  h3 { color: var(--bg); margin-top: 24px; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th {
+    background: #f8fafc;
+    font-weight: 600;
+  }
+  code, pre {
+    font-family: "Fira Code", Consolas, Monaco, monospace;
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-size: 0.92em;
+  }
+  pre {
+    padding: 16px;
+    overflow-x: auto;
+    line-height: 1.4;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+  }
+  .badge.done   { background: var(--green); }
+  .badge.todo   { background: var(--orange); }
+  .badge.later  { background: var(--muted); }
+  .badge.warn   { background: var(--yellow); }
+  .grid {
+    display: grid;
+    gap: 16px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  }
+  .card {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    background: #fafbfc;
+  }
+  .card h4 { margin: 0 0 8px; }
+  .strong h4   { color: var(--green); }
+  .weak h4     { color: var(--red); }
+  .attention h4 { color: var(--orange); }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .ascii {
+    background: #0f172a;
+    color: #e2e8f0;
+    padding: 16px;
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    margin-top: 12px;
+  }
+  .pill {
+    background: #e0e7ff;
+    color: #1e3a8a;
+    padding: 4px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+  }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 24px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Solar Cloud Coverage Forecaster</h1>
+  <p>Prévision de production solaire à H+1 → H+48 — couplage imagerie satellite + NWP</p>
+  <p><strong>Zones :</strong> Belgique · Pays-Bas · Nord de la France · Luxembourg · Ouest de l'Allemagne</p>
+</header>
+
+<main>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>1. Vue d'ensemble</h2>
+  <p>
+    Pipeline Python qui combine deux sources de données complémentaires pour produire des
+    prévisions de couverture nuageuse et d'irradiance solaire (GHI) à plusieurs horizons
+    (H+1, H+3, H+6, H+12, H+24, H+48) :
+  </p>
+  <ul>
+    <li><strong>Sat24.com</strong> (Infoplaza) — tuiles JPEG VIS &amp; IR toutes les 15 min</li>
+    <li><strong>Open-Meteo</strong> — variables NWP horaires (couverture nuageuse, GHI, vent, T°, précipitations)</li>
+  </ul>
+  <p>
+    Les images sont transformées en <em>cloud index</em> + vecteurs de mouvement (flot optique)
+    qui alimentent un modèle <strong>XGBoost multi-horizons</strong> exposé via une API REST FastAPI.
+  </p>
+  <div class="meta">
+    <span class="pill">Python 3.11</span>
+    <span class="pill">FastAPI</span>
+    <span class="pill">XGBoost</span>
+    <span class="pill">PostgreSQL / TimescaleDB</span>
+    <span class="pill">OpenCV</span>
+    <span class="pill">pvlib</span>
+    <span class="pill">Optuna</span>
+    <span class="pill">APScheduler</span>
+    <span class="pill">Docker Compose</span>
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>2. Architecture</h2>
+  <pre class="ascii">
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                            APScheduler (Improvement A)                      │
+└─────────────────────────────────────────────────────────────────────────────┘
+        │ 15 min                  │ 1 h                  │ 1 h                │
+        ▼                         ▼                      ▼                    ▼
+┌───────────────┐        ┌────────────────┐    ┌──────────────────┐  ┌──────────────┐
+│ M1 — Scraper  │        │ M2 — Open-Meteo│    │ M4 — Feature     │  │ M6 — API     │
+│ sat24 tiles   │        │ NWP fetcher    │    │ pipeline_worker  │  │ /forecast/…  │
+│ (VIS + IR)    │        │ archive +      │    │ cloud index +    │  │ FastAPI      │
+│ pvlib day/    │        │ forecast       │    │ optical flow     │  │ /health      │
+│ night fallback│        │ (cache + retry)│    │ (Improvement B)  │  │ (Improv. D)  │
+└──────┬────────┘        └───────┬────────┘    └────────┬─────────┘  └──────┬───────┘
+       │                          │                      │                   │
+       │  JPEG + JSON             │                      │                   │
+       ▼                          ▼                      ▼                   │
+       └──────────► ┌──────────────────────────────────────────┐ ◄───────────┘
+                    │  M3 — PostgreSQL + TimescaleDB           │
+                    │  satellite_images / cloud_features /     │
+                    │  weather_data / solar_forecasts          │
+                    └────────────────────┬─────────────────────┘
+                                         │
+                                         ▼
+                                ┌──────────────────────┐
+                                │ M5 — Trainer         │
+                                │ XGBoost multi-horiz. │
+                                │ + Optuna walk-fwd CV │
+                                │  (Improvement C)     │
+                                └──────────────────────┘
+  </pre>
+
+  <h3>Modules</h3>
+  <table>
+    <tr><th>Module</th><th>Rôle</th><th>Fichier(s) clé(s)</th></tr>
+    <tr><td>M1 — Scraper</td><td>Téléchargement des tuiles sat24 (rate-limited, fallback nocturne)</td><td><code>scraper/sat24_scraper.py</code></td></tr>
+    <tr><td>M2 — Open-Meteo</td><td>Forecast 7 j + archive 90 j, cache HTTP + retry</td><td><code>open_meteo/fetcher.py</code></td></tr>
+    <tr><td>M3 — DB</td><td>Schéma TimescaleDB + ORM SQLAlchemy + helpers d'ingestion</td><td><code>db/schema.sql</code>, <code>db/models.py</code>, <code>db/ingestion.py</code></td></tr>
+    <tr><td>M4 — Features</td><td>Cloud index, flot optique Farneback, pvlib clear-sky, encodage cyclique</td><td><code>features/image_processor.py</code>, <code>features/pipeline_worker.py</code></td></tr>
+    <tr><td>M5 — Modèle</td><td>Baseline flot optique + XGBoost multi-horizons + tuning Optuna</td><td><code>model/trainer.py</code></td></tr>
+    <tr><td>M6 — API</td><td>FastAPI : <code>/zones</code>, <code>/forecast/{zone}</code>, <code>/forecast/trigger</code>, <code>/health</code></td><td><code>output/forecast_api.py</code></td></tr>
+    <tr><td>Scheduler</td><td>APScheduler — orchestration de tous les jobs récurrents</td><td><code>scheduler/pipeline.py</code></td></tr>
+    <tr><td>CLI</td><td>Point d'entrée unique (10 commandes)</td><td><code>main.py</code></td></tr>
+  </table>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>3. Ce qui a été fait</h2>
+  <table>
+    <tr><th>Phase</th><th>Statut</th><th>Description</th></tr>
+    <tr><td>P1</td><td><span class="badge done">Fait</span></td><td>Exploration de l'API sat24 et validation des URLs</td></tr>
+    <tr><td>P2</td><td><span class="badge done">Fait</span></td><td>Scraper MVP (tuiles + sidecar JSON, rate-limit 5 s)</td></tr>
+    <tr><td>P3</td><td><span class="badge done">Fait</span></td><td>Schéma DB TimescaleDB + modèles ORM + ingestion</td></tr>
+    <tr><td>P4</td><td><span class="badge done">Fait</span></td><td>Collecte Open-Meteo (forecast + archive 90 j)</td></tr>
+    <tr><td>P5</td><td><span class="badge done">Fait</span></td><td>Feature engineering (cloud index, flot optique, pvlib, encodage temporel)</td></tr>
+    <tr><td>P6</td><td><span class="badge done">Fait</span></td><td>Baseline flot optique + XGBoost multi-horizons (MAE/RMSE/skill score)</td></tr>
+    <tr><td>P7</td><td><span class="badge later">Plus tard</span></td><td>ConvLSTM / hybride NWP — exige ≥ 90 j de données collectées</td></tr>
+    <tr><td>P8</td><td><span class="badge done">Fait</span></td><td>API REST FastAPI (forecast, trigger, zones)</td></tr>
+  </table>
+
+  <h3>Améliorations transversales livrées</h3>
+  <ul>
+    <li><strong>Improvement A</strong> — APScheduler intégré (<code>scheduler/pipeline.py</code>) : un seul process orchestre scrape (15 min), fetch météo (1 h), feature worker (15 min), trigger forecast (1 h).</li>
+    <li><strong>Improvement B</strong> — Worker de feature engineering (<code>features/pipeline_worker.py</code>) : balaye les images <code>processed=False</code>, calcule cloud index + flot optique par zone, marque comme traité.</li>
+    <li><strong>Improvement C</strong> — Tuning Optuna walk-forward (<code>run_optuna_tuning</code>) : recherche bayésienne sur 9 hyperparamètres XGBoost avec validation glissante 3 folds.</li>
+    <li><strong>Improvement D</strong> — Endpoint <code>/health</code> : statut <em>ok / degraded / unavailable</em> selon fraîcheur scrape, météo, présence du modèle, zones avec prévisions récentes.</li>
+    <li><strong>Improvement F</strong> — Fallback nocturne automatique : <code>pvlib</code> détecte l'élévation solaire, le canal VIS est sauté la nuit (IR + NWP only).</li>
+    <li><strong>Docker Compose</strong> — stack 3 services (TimescaleDB + scheduler + API) avec healthchecks et volumes persistants.</li>
+  </ul>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>4. Points forts</h2>
+  <div class="grid">
+
+    <div class="card strong">
+      <h4>Séparation des responsabilités</h4>
+      <p>Chaque module (scraper, fetcher, features, modèle, API) est isolé, testable individuellement et orchestré par <code>main.py</code>. Le couplage transite uniquement par la base de données.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Approche multi-niveaux</h4>
+      <p>Baseline flot optique sans entraînement + XGBoost multi-horizons. Le baseline reste utilisable même sans 90 j de données.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Rigueur ML série temporelle</h4>
+      <p>Split temporel strict (<em>jamais</em> de shuffle), évaluation MAE/RMSE/skill vs NWP, walk-forward CV pour le tuning Optuna.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Stockage adapté</h4>
+      <p>TimescaleDB avec hypertables sur <code>captured_at</code> + index par zone — taillé pour des requêtes time-series à grande échelle.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Production-ready</h4>
+      <p>Dockerfile, docker-compose, healthchecks HTTP &amp; DB, retry &amp; cache HTTP côté Open-Meteo, rate-limit côté sat24.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Robustesse opérationnelle</h4>
+      <p>Fallback nocturne basé sur pvlib, scheduler avec <code>max_instances=1</code> + <code>coalesce=True</code>, gestion d'erreurs au niveau de chaque job.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>API claire</h4>
+      <p>FastAPI auto-documentée (<code>/docs</code>), schémas Pydantic explicites, endpoint <code>/health</code> détaillé pour le monitoring.</p>
+    </div>
+
+    <div class="card strong">
+      <h4>Configuration centralisée</h4>
+      <p>Tout passe par <code>config.py</code> + <code>.env</code> : URL DB, intervalles, zones, variables NWP, horizons. Aucune valeur magique disséminée.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>5. Points faibles</h2>
+  <div class="grid">
+
+    <div class="card weak">
+      <h4>Aucun test automatisé</h4>
+      <p>Pas de répertoire <code>tests/</code>, pas de pytest, pas de CI. Les régressions sur le calcul de cloud index, flot optique ou jointure <code>merge_asof</code> passeraient silencieusement.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Bbox de zones non calibrées</h4>
+      <p>Les <code>ZONE_PIXEL_BBOXES</code> dans <code>pipeline_worker.py</code> sont des placeholders. Tant qu'elles ne sont pas calibrées sur les vraies dimensions des tuiles, les <em>cloud index</em> par zone sont approximatifs.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Ingestion ligne-par-ligne</h4>
+      <p><code>ingest_weather_dataframe</code> fait un <code>session.add</code> par ligne — non scalable sur de gros backfills (90 j × 8 zones × 24 h ≈ 17 000 lignes). Aucun <code>bulk_insert</code> ni <code>COPY</code>.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Pas de gestion de doublons</h4>
+      <p>Aucune contrainte d'unicité ni <code>ON CONFLICT</code> sur les tables. Relancer un backfill ou un fetch insère des doublons en base.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Mapping API ↔ horizon imprécis</h4>
+      <p><code>GET /forecast/{zone}/{horizon_h}</code> renvoie systématiquement <code>forecast.forecast[0]</code> au lieu de chercher la ligne au bon <code>valid_at</code>.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Conversion GHI naïve</h4>
+      <p><code>ghi_pred = ghi_clearsky × (1 − cloud × 0.75)</code> est une formule paramétrique sans validation empirique. À remplacer par un modèle entraîné sur <code>shortwave_radiation</code>.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Couplage circulaire potentiel</h4>
+      <p><code>scheduler.pipeline</code> importe <code>output.forecast_api.trigger_forecast</code>, qui démarre l'app FastAPI au chargement du module. Risque de double exécution selon l'environnement.</p>
+    </div>
+
+    <div class="card weak">
+      <h4>Pas de versioning des modèles</h4>
+      <p>Un seul fichier <code>xgboost_v1.pkl</code>, écrasé à chaque <code>train</code>. Aucun MLflow / DVC / lineage : impossible de comparer deux runs ou de revenir à une version antérieure.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>6. Points d'attention</h2>
+  <div class="grid">
+
+    <div class="card attention">
+      <h4>Statut juridique de sat24</h4>
+      <p>L'API tuiles d'Infoplaza n'est <strong>pas publique ni documentée</strong>. À vérifier impérativement les CGU avant tout usage commercial. Pour de la production, basculer sur l'API officielle Eumetsat SEVIRI/MSG.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Géoréférencement des tuiles</h4>
+      <p>Le mapping pixel ↔ lat/lon repose sur la convention SlippyMap/TMS. La constante <code>TILES</code> dans <code>config.py</code> couvre BE/NL/FR-nord à zoom 5 — à recalibrer pour toute autre zone.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Volume de données requis</h4>
+      <p>Le modèle XGBoost a besoin d'au moins 30–90 jours de scraping continu pour atteindre un skill score positif. La baseline flot optique pallie en attendant.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Secrets en clair dans docker-compose</h4>
+      <p><code>POSTGRES_PASSWORD: solar_secret</code> est codé en dur. À externaliser via <code>.env</code> + <code>env_file</code> ou un secret manager avant tout déploiement.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Quota Open-Meteo</h4>
+      <p>L'API gratuite Open-Meteo limite à ~10 000 requêtes/jour. Avec 8 zones × cron horaire, ça reste très en-dessous, mais le cache (<code>requests_cache</code> TTL 3600 s) est essentiel.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Concurrence scrape ↔ feature worker</h4>
+      <p>Les deux jobs tournent à 15 min. Si le scrape déborde, le worker peut tomber sur un fichier en cours d'écriture. Acceptable en pratique (Pillow lèvera et le record reste <code>processed=False</code>) mais à surveiller.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Absence d'observabilité</h4>
+      <p>Logs <code>logging</code> standard uniquement, pas de métriques (Prometheus, OpenTelemetry). Le <code>/health</code> est un bon départ mais ne remplace pas un dashboard.</p>
+    </div>
+
+    <div class="card attention">
+      <h4>Imports tardifs dans <code>main.py</code></h4>
+      <p>Les imports lourds (<code>pvlib</code>, <code>xgboost</code>) sont faits dans les fonctions de commande pour démarrer vite. Pratique correcte mais qui complique l'analyse statique.</p>
+    </div>
+
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>7. Reste à faire</h2>
+
+  <h3>Court terme — qualité &amp; robustesse</h3>
+  <ul>
+    <li><span class="badge todo">À faire</span> Suite de tests <code>pytest</code> : unitaires (cloud index, flot optique, encodage temporel) + intégration (scrape mocké, ingestion DB sur SQLite).</li>
+    <li><span class="badge todo">À faire</span> Workflow GitHub Actions : <code>ruff</code> + <code>pytest</code> + <code>mypy</code> sur PR.</li>
+    <li><span class="badge todo">À faire</span> Calibration des <code>ZONE_PIXEL_BBOXES</code> à partir des vraies tuiles (lecture du JSON sidecar + reprojection).</li>
+    <li><span class="badge todo">À faire</span> Contraintes d'unicité <code>(captured_at, zone_name, channel)</code> + <code>INSERT … ON CONFLICT DO NOTHING</code> dans toutes les fonctions d'ingestion.</li>
+    <li><span class="badge todo">À faire</span> Bulk insert <code>COPY</code> pour <code>ingest_weather_dataframe</code> (gain ×100 sur le backfill).</li>
+    <li><span class="badge todo">À faire</span> Corriger <code>GET /forecast/{zone}/{horizon_h}</code> (filtrer par <code>valid_at ≈ now + horizon</code>).</li>
+    <li><span class="badge todo">À faire</span> Externaliser les credentials DB hors du <code>docker-compose.yml</code>.</li>
+  </ul>
+
+  <h3>Moyen terme — qualité du modèle</h3>
+  <ul>
+    <li><span class="badge warn">Important</span> Cible GHI réelle : entraîner un second XGBoost sur <code>shortwave_radiation</code> au lieu de la formule paramétrique.</li>
+    <li><span class="badge warn">Important</span> Versioning MLflow ou DVC sur les modèles + suivi des métriques par run.</li>
+    <li><span class="badge warn">Important</span> Lags multi-frame (cloud index t, t-15, t-30, t-60 min) en features.</li>
+    <li><span class="badge warn">Important</span> Validation hors zone (transfert Bruxelles → Paris-Nord) pour mesurer la généralisation.</li>
+  </ul>
+
+  <h3>Long terme — phase P7</h3>
+  <ul>
+    <li><span class="badge later">P7</span> ConvLSTM ou TimeSformer sur séquences d'images — nécessite ≥ 90 j de données collectées.</li>
+    <li><span class="badge later">P7</span> Fusion hybride : sortie ConvLSTM en feature additionnelle de l'XGBoost.</li>
+    <li><span class="badge later">P7</span> Migration éventuelle vers EUMETSAT SEVIRI/MSG pour un usage commercial.</li>
+    <li><span class="badge later">P7</span> Frontend de visualisation (dashboard Plotly Dash ou Streamlit) pour exploration interactive.</li>
+  </ul>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>8. Synthèse</h2>
+  <p>
+    Le projet est un pipeline ML <strong>complet et bien structuré</strong> qui couvre l'intégralité de la chaîne :
+    collecte → stockage → feature engineering → entraînement → inférence → API. Les phases P1 à P6 et P8 sont
+    livrées, ainsi que cinq améliorations transversales (scheduler intégré, worker auto, tuning Optuna, healthcheck,
+    fallback nocturne).
+  </p>
+  <p>
+    Les <strong>fondations sont solides</strong> (architecture modulaire, séparation claire, choix techniques
+    adaptés au time-series), mais le projet souffre de <strong>l'absence de tests automatisés</strong> et de
+    quelques approximations qui resteront masquées tant qu'il n'y aura pas de vraie campagne de scraping de 90 j.
+    La calibration des bounding boxes pixel et la validation empirique de la conversion GHI sont les deux
+    prochaines étapes critiques pour passer du prototype à la production.
+  </p>
+</section>
+
+</main>
+
+<footer>
+  Solar Cloud Coverage Forecaster — résumé généré pour la branche
+  <code>claude/project-summary-docs-xXOZa</code>.
+</footer>
+
+</body>
+</html>

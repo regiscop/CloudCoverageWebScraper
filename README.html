@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Solar Cloud Coverage Forecaster — Guide d'utilisation</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --accent: #16a34a;
+    --accent-2: #2563eb;
+    --text: #0f172a;
+    --muted: #475569;
+    --border: #e2e8f0;
+    --code-bg: #0f172a;
+    --code-fg: #e2e8f0;
+  }
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    background: #f8fafc;
+    color: var(--text);
+    line-height: 1.65;
+  }
+  header {
+    background: linear-gradient(135deg, #0f172a 0%, #16a34a 100%);
+    color: #fff;
+    padding: 48px 32px;
+    text-align: center;
+  }
+  header h1 { margin: 0 0 6px; font-size: 2.1rem; }
+  header p { opacity: 0.92; margin: 4px 0; }
+  nav {
+    background: #fff;
+    border-bottom: 1px solid var(--border);
+    padding: 12px 24px;
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.04);
+  }
+  nav ul {
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 18px;
+    margin: 0;
+    padding: 0;
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+  nav a {
+    color: var(--accent-2);
+    text-decoration: none;
+    font-weight: 500;
+    font-size: 0.93rem;
+  }
+  nav a:hover { text-decoration: underline; }
+  main { max-width: 1100px; margin: 0 auto 48px; padding: 0 24px; }
+  section {
+    background: #fff;
+    border-radius: 10px;
+    padding: 24px 32px;
+    margin: 24px 0;
+    box-shadow: 0 4px 12px rgba(15, 23, 42, 0.07);
+  }
+  h2 {
+    border-bottom: 2px solid var(--accent);
+    padding-bottom: 8px;
+    margin-top: 0;
+  }
+  h3 { color: var(--bg); margin-top: 24px; }
+  pre {
+    background: var(--code-bg);
+    color: var(--code-fg);
+    padding: 16px 20px;
+    border-radius: 8px;
+    overflow-x: auto;
+    font-family: "Fira Code", Consolas, monospace;
+    font-size: 0.92em;
+    line-height: 1.5;
+  }
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-family: "Fira Code", Consolas, monospace;
+    font-size: 0.92em;
+  }
+  pre code { background: none; padding: 0; }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0;
+  }
+  th, td {
+    border: 1px solid var(--border);
+    padding: 10px 12px;
+    text-align: left;
+    vertical-align: top;
+  }
+  th { background: #f8fafc; font-weight: 600; }
+  .step {
+    border-left: 4px solid var(--accent);
+    background: #f0fdf4;
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .step strong { color: var(--accent); }
+  .tip {
+    border-left: 4px solid var(--accent-2);
+    background: #eff6ff;
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .warn {
+    border-left: 4px solid #ea580c;
+    background: #fff7ed;
+    padding: 12px 16px;
+    margin: 14px 0;
+    border-radius: 0 6px 6px 0;
+  }
+  .badge {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 12px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: #fff;
+    background: var(--accent-2);
+  }
+  ul { padding-left: 22px; }
+  li { margin: 4px 0; }
+  footer {
+    text-align: center;
+    color: var(--muted);
+    font-size: 0.9rem;
+    padding: 24px;
+  }
+  .pill {
+    background: #dcfce7;
+    color: #166534;
+    padding: 3px 12px;
+    border-radius: 999px;
+    font-size: 0.85rem;
+    margin-right: 6px;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>Solar Cloud Coverage Forecaster</h1>
+  <p>Guide d'utilisation — du clone à la première prévision</p>
+  <p><span class="pill">Python 3.11+</span><span class="pill">PostgreSQL / TimescaleDB</span><span class="pill">Docker</span></p>
+</header>
+
+<nav>
+  <ul>
+    <li><a href="#prereq">1. Prérequis</a></li>
+    <li><a href="#install">2. Installation</a></li>
+    <li><a href="#config">3. Configuration</a></li>
+    <li><a href="#db">4. Base de données</a></li>
+    <li><a href="#cli">5. Commandes CLI</a></li>
+    <li><a href="#api">6. API REST</a></li>
+    <li><a href="#docker">7. Docker Compose</a></li>
+    <li><a href="#tuning">8. Tuning &amp; modèles</a></li>
+    <li><a href="#troubleshoot">9. Dépannage</a></li>
+  </ul>
+</nav>
+
+<main>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="prereq">
+  <h2>1. Prérequis</h2>
+  <ul>
+    <li><strong>Python 3.11+</strong> (le projet utilise les annotations <code>X | Y</code>)</li>
+    <li><strong>PostgreSQL 14+</strong> (idéalement avec l'extension TimescaleDB)</li>
+    <li><strong>Git</strong> pour cloner le dépôt</li>
+    <li><em>Optionnel mais recommandé</em> : <strong>Docker</strong> + <strong>Docker Compose</strong> pour un déploiement clé en main</li>
+    <li>Une connexion internet (sat24.com + api.open-meteo.com)</li>
+  </ul>
+  <div class="tip">
+    <strong>Remarque :</strong> aucune clé API n'est requise — Open-Meteo fonctionne en accès libre dans la limite
+    de ~10 000 requêtes/jour, et sat24 ne demande pas d'authentification (mais lire les CGU avant tout usage commercial).
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="install">
+  <h2>2. Installation</h2>
+
+  <div class="step">
+    <strong>Étape 1 — Cloner le dépôt</strong>
+    <pre><code>git clone https://github.com/regiscop/cloudcoveragewebscraper.git
+cd CloudCoverageWebScraper</code></pre>
+  </div>
+
+  <div class="step">
+    <strong>Étape 2 — Créer un environnement virtuel</strong>
+    <pre><code>python -m venv .venv
+source .venv/bin/activate          # Linux / macOS
+# .venv\Scripts\activate          # Windows PowerShell</code></pre>
+  </div>
+
+  <div class="step">
+    <strong>Étape 3 — Installer les dépendances</strong>
+    <pre><code>pip install -r requirements.txt</code></pre>
+    <p>Inclut : <code>requests</code>, <code>Pillow</code>, <code>opencv-python</code>, <code>numpy</code>,
+    <code>openmeteo-requests</code>, <code>pvlib</code>, <code>xgboost</code>, <code>optuna</code>,
+    <code>sqlalchemy</code>, <code>psycopg2-binary</code>, <code>fastapi</code>, <code>uvicorn</code>,
+    <code>APScheduler</code>, <code>pandas</code>, <code>python-dotenv</code>.</p>
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="config">
+  <h2>3. Configuration</h2>
+  <p>Le projet utilise un fichier <code>.env</code> pour les paramètres sensibles.</p>
+
+  <div class="step">
+    <strong>Copier le modèle d'environnement</strong>
+    <pre><code>cp .env.example .env</code></pre>
+  </div>
+
+  <p>Variables disponibles (toutes ont une valeur par défaut dans <code>config.py</code>) :</p>
+  <table>
+    <tr><th>Variable</th><th>Défaut</th><th>Description</th></tr>
+    <tr><td><code>DATABASE_URL</code></td><td><code>postgresql://user:password@localhost:5432/solar_forecast</code></td><td>URL SQLAlchemy de la DB</td></tr>
+    <tr><td><code>SCRAPE_INTERVAL_MINUTES</code></td><td><code>15</code></td><td>Intervalle entre deux rounds de scrape</td></tr>
+    <tr><td><code>DATA_DIR</code></td><td><code>data/raw</code></td><td>Répertoire de stockage des tuiles JPEG</td></tr>
+    <tr><td><code>API_HOST</code></td><td><code>0.0.0.0</code></td><td>Host d'écoute FastAPI</td></tr>
+    <tr><td><code>API_PORT</code></td><td><code>8000</code></td><td>Port d'écoute FastAPI</td></tr>
+    <tr><td><code>OPENMETEO_CACHE_TTL</code></td><td><code>3600</code></td><td>TTL du cache Open-Meteo en secondes</td></tr>
+  </table>
+
+  <div class="tip">
+    <strong>Personnalisation :</strong> les zones géographiques (<code>GRID_POINTS</code>), les tuiles sat24 (<code>TILES</code>),
+    les variables NWP (<code>OPEN_METEO_VARIABLES</code>) et les horizons (<code>FORECAST_HORIZONS_H</code>) se modifient
+    directement dans <code>config.py</code>.
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="db">
+  <h2>4. Initialisation de la base de données</h2>
+
+  <h3>Option A — TimescaleDB (recommandé)</h3>
+  <p>Profite des hypertables pour un stockage et des requêtes time-series optimisés.</p>
+  <pre><code># Créer la base et un user
+createdb solar_forecast
+psql -d solar_forecast -c "CREATE EXTENSION IF NOT EXISTS timescaledb;"
+
+# Appliquer le schéma
+psql -U &lt;user&gt; -d solar_forecast -f db/schema.sql</code></pre>
+
+  <h3>Option B — PostgreSQL standard ou SQLite</h3>
+  <p>Crée les tables via SQLAlchemy (sans hypertables).</p>
+  <pre><code>python main.py init-db</code></pre>
+
+  <div class="warn">
+    <strong>Attention :</strong> sans TimescaleDB les requêtes sur de longs historiques seront plus lentes,
+    et le stockage n'est pas compressé.
+  </div>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="cli">
+  <h2>5. Commandes CLI</h2>
+  <p>Toutes les commandes passent par <code>python main.py &lt;command&gt;</code>.</p>
+
+  <table>
+    <tr><th>Commande</th><th>Description</th></tr>
+    <tr><td><code>scrape</code></td><td>Boucle bloquante — fetch les tuiles sat24 toutes les <code>SCRAPE_INTERVAL_MINUTES</code></td></tr>
+    <tr><td><code>scrape-once</code></td><td>Un seul round de scrape (utile pour cron / tests)</td></tr>
+    <tr><td><code>fetch-weather</code></td><td>Récupère les prévisions Open-Meteo pour toutes les zones et insère en DB</td></tr>
+    <tr><td><code>backfill</code></td><td>Backfill des 90 derniers jours de données NWP archive</td></tr>
+    <tr><td><code>worker</code></td><td>Traite les images <code>processed=False</code> → cloud index + flot optique</td></tr>
+    <tr><td><code>train</code></td><td>Entraîne XGBoost multi-horizons à partir des features &amp; météo en DB</td></tr>
+    <tr><td><code>tune</code></td><td>Tuning Optuna walk-forward (<code>--horizon N --trials M</code>)</td></tr>
+    <tr><td><code>scheduler</code></td><td>Démarre l'orchestrateur APScheduler (tous les jobs en un process)</td></tr>
+    <tr><td><code>serve</code></td><td>Démarre l'API FastAPI sur <code>API_HOST:API_PORT</code></td></tr>
+    <tr><td><code>init-db</code></td><td>Crée les tables via SQLAlchemy (alternative à <code>schema.sql</code>)</td></tr>
+  </table>
+
+  <h3>Quick start — première utilisation</h3>
+  <div class="step">
+    <strong>Étape 1 — Initialiser la DB</strong>
+    <pre><code>python main.py init-db</code></pre>
+  </div>
+  <div class="step">
+    <strong>Étape 2 — Backfill météo (90 jours d'historique)</strong>
+    <pre><code>python main.py backfill</code></pre>
+  </div>
+  <div class="step">
+    <strong>Étape 3 — Démarrer la collecte des tuiles satellites</strong>
+    <pre><code># En boucle (laisser tourner) :
+python main.py scrape
+
+# OU un seul round (pour tester) :
+python main.py scrape-once</code></pre>
+  </div>
+  <div class="step">
+    <strong>Étape 4 — Lancer le worker de feature engineering</strong>
+    <pre><code>python main.py worker</code></pre>
+  </div>
+  <div class="step">
+    <strong>Étape 5 — Entraîner le modèle (après quelques jours de scrape)</strong>
+    <pre><code>python main.py train</code></pre>
+    <p>Affiche les MAE / RMSE / skill score par horizon. Le modèle est sauvegardé dans <code>models/xgboost_v1.pkl</code>.</p>
+  </div>
+  <div class="step">
+    <strong>Étape 6 — Démarrer l'API</strong>
+    <pre><code>python main.py serve
+# → http://localhost:8000/docs (Swagger UI)</code></pre>
+  </div>
+
+  <h3>Mode tout-en-un — APScheduler</h3>
+  <p>Pour tout orchestrer dans un seul processus (scrape + météo + features + trigger forecast) :</p>
+  <pre><code>python main.py scheduler</code></pre>
+  <ul>
+    <li>Scrape toutes les <code>SCRAPE_INTERVAL_MINUTES</code> (défaut 15 min)</li>
+    <li>Worker de features toutes les 15 min</li>
+    <li>Fetch Open-Meteo à chaque heure pile</li>
+    <li>Trigger d'une prévision fraîche à HH:05</li>
+  </ul>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="api">
+  <h2>6. API REST</h2>
+  <p>Une fois <code>python main.py serve</code> lancé, ouvrez <a href="http://localhost:8000/docs">http://localhost:8000/docs</a>
+  pour la documentation interactive Swagger.</p>
+
+  <h3>Endpoints</h3>
+  <table>
+    <tr><th>Méthode</th><th>Path</th><th>Description</th></tr>
+    <tr><td>GET</td><td><code>/health</code></td><td>Statut système (fraîcheur scrape, météo, modèle, zones)</td></tr>
+    <tr><td>GET</td><td><code>/zones</code></td><td>Liste des zones configurées</td></tr>
+    <tr><td>GET</td><td><code>/forecast/{zone}</code></td><td>Prévision 48 h pour une zone</td></tr>
+    <tr><td>GET</td><td><code>/forecast/{zone}/{horizon_h}</code></td><td>Point unique pour un horizon (1, 3, 6, 12, 24, 48)</td></tr>
+    <tr><td>POST</td><td><code>/forecast/trigger</code></td><td>Déclenche une nouvelle prédiction pour toutes les zones</td></tr>
+  </table>
+
+  <h3>Exemples curl</h3>
+  <pre><code># Vérifier la santé
+curl http://localhost:8000/health | jq
+
+# Lister les zones
+curl http://localhost:8000/zones
+
+# Prévision Bruxelles 48 h
+curl http://localhost:8000/forecast/brussels | jq
+
+# Prévision Paris-Nord à H+6
+curl http://localhost:8000/forecast/paris_nord/6
+
+# Déclencher un nouveau run
+curl -X POST http://localhost:8000/forecast/trigger</code></pre>
+
+  <h3>Zones disponibles par défaut</h3>
+  <p><code>brussels</code>, <code>liege</code>, <code>ghent</code>, <code>amsterdam</code>,
+  <code>paris_nord</code>, <code>luxembourg</code>, <code>cologne</code>, <code>lille</code>.</p>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="docker">
+  <h2>7. Déploiement Docker Compose</h2>
+  <p>La stack Docker comprend trois services : TimescaleDB + scheduler (scraper + workers) + API.</p>
+
+  <div class="step">
+    <strong>Étape 1 — Préparer le .env</strong>
+    <pre><code>cp .env.example .env
+# Adapter DATABASE_URL si besoin (par défaut : postgresql://solar:solar_secret@db:5432/solar_forecast)</code></pre>
+  </div>
+
+  <div class="step">
+    <strong>Étape 2 — Build &amp; run</strong>
+    <pre><code>docker compose up -d --build</code></pre>
+  </div>
+
+  <div class="step">
+    <strong>Étape 3 — Vérifier les services</strong>
+    <pre><code>docker compose ps
+docker compose logs -f scheduler
+curl http://localhost:8000/health</code></pre>
+  </div>
+
+  <div class="step">
+    <strong>Étape 4 — Backfill et entraînement initiaux</strong>
+    <pre><code>docker compose exec scheduler python main.py backfill
+# … attendre quelques jours de scrape …
+docker compose exec scheduler python main.py train</code></pre>
+  </div>
+
+  <div class="warn">
+    <strong>Sécurité :</strong> changer impérativement <code>POSTGRES_PASSWORD</code> dans
+    <code>docker-compose.yml</code> avant tout déploiement hors machine locale.
+  </div>
+
+  <h3>Volumes</h3>
+  <ul>
+    <li><code>pgdata</code> — données PostgreSQL (persistantes)</li>
+    <li><code>rawdata</code> — tuiles JPEG sat24</li>
+    <li><code>models</code> — modèles XGBoost sérialisés</li>
+  </ul>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="tuning">
+  <h2>8. Tuning Optuna &amp; modèles</h2>
+
+  <h3>Recherche d'hyperparamètres</h3>
+  <pre><code># 50 trials par défaut, horizon H+1
+python main.py tune
+
+# 100 trials sur l'horizon H+6
+python main.py tune --horizon 6 --trials 100</code></pre>
+
+  <p>Les paramètres explorés : <code>n_estimators</code>, <code>max_depth</code>, <code>learning_rate</code>,
+  <code>subsample</code>, <code>colsample_bytree</code>, <code>min_child_weight</code>, <code>gamma</code>,
+  <code>reg_alpha</code>, <code>reg_lambda</code>.</p>
+
+  <p>Le tuning utilise une <strong>cross-validation walk-forward</strong> à 3 folds, ce qui respecte la nature
+  temporelle des données (jamais de fuite du futur vers le passé).</p>
+
+  <p>Le meilleur modèle est sauvegardé dans <code>models/xgboost_v1_tuned.pkl</code>.</p>
+
+  <h3>Charger un modèle dans son code</h3>
+  <pre><code>from model.trainer import load_models
+models = load_models("v1_tuned")  # dict[horizon_h, XGBRegressor]
+y_pred = models[6].predict(X)     # prévision H+6</code></pre>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section id="troubleshoot">
+  <h2>9. Dépannage</h2>
+
+  <h3>Le scrape échoue avec <code>403</code> ou <code>429</code></h3>
+  <ul>
+    <li>Vérifier que <code>SAT24_MIN_REQUEST_INTERVAL_S</code> est ≥ 5 secondes (défaut OK).</li>
+    <li>Le User-Agent est défini dans <code>scraper/sat24_scraper.py</code>. Le modifier si besoin.</li>
+    <li>Patienter quelques minutes — le rate-limit côté Infoplaza est temporaire.</li>
+  </ul>
+
+  <h3><code>train</code> renvoie « No training data »</h3>
+  <ul>
+    <li>Lancer <code>python main.py backfill</code> (météo) ET attendre que le worker ait traité au moins une journée d'images.</li>
+    <li>Vérifier le contenu de <code>cloud_features</code> en DB : <code>SELECT COUNT(*) FROM cloud_features;</code></li>
+    <li>Vérifier que les <code>ZONE_PIXEL_BBOXES</code> sont dans les dimensions des tuiles (sinon ROI vide → NaN).</li>
+  </ul>
+
+  <h3>L'API renvoie « No forecast available »</h3>
+  <ol>
+    <li>Avoir entraîné un modèle : <code>python main.py train</code>.</li>
+    <li>Avoir déclenché au moins une prévision : <code>POST /forecast/trigger</code> ou attendre HH:05 si scheduler actif.</li>
+    <li>Vérifier <code>/health</code> — si <code>status=unavailable</code>, regarder quel champ est <code>None</code>.</li>
+  </ol>
+
+  <h3>Erreur OpenCV sur Linux dans Docker</h3>
+  <p>Si <code>libgl1</code> manque dans une image custom, l'ajouter au <code>Dockerfile</code> (déjà inclus dans celui fourni).</p>
+
+  <h3>Logs</h3>
+  <p>Le format global est défini dans <code>main.py</code> :</p>
+  <pre><code>YYYY-MM-DD HH:MM:SS [LEVEL] module — message</code></pre>
+  <p>Les niveaux par défaut sont <code>INFO</code> ; passer à <code>DEBUG</code> en modifiant
+  <code>logging.basicConfig(level=logging.DEBUG, ...)</code> dans <code>main.py</code>.</p>
+</section>
+
+<!-- ──────────────────────────────────────────────────────────── -->
+<section>
+  <h2>Tableau récapitulatif des cas d'usage</h2>
+  <table>
+    <tr><th>Objectif</th><th>Commandes</th></tr>
+    <tr><td>Test rapide en local</td><td><code>init-db</code> → <code>backfill</code> → <code>scrape-once</code> → <code>worker</code></td></tr>
+    <tr><td>Production single-host</td><td><code>docker compose up -d</code></td></tr>
+    <tr><td>Production séparée</td><td>2 process : <code>scheduler</code> + <code>serve</code></td></tr>
+    <tr><td>Recherche / amélioration modèle</td><td><code>tune --horizon X --trials Y</code></td></tr>
+    <tr><td>Monitoring</td><td><code>GET /health</code> + logs</td></tr>
+  </table>
+</section>
+
+</main>
+
+<footer>
+  Solar Cloud Coverage Forecaster — README généré pour la branche
+  <code>claude/project-summary-docs-xXOZa</code>.
+</footer>
+
+</body>
+</html>
