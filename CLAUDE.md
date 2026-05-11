@@ -55,7 +55,8 @@ only shared module by design — resist cross-module helpers.
 - **Type hints** on new public functions.
 - **`logging.getLogger(__name__)`**, never `print`.
 - **All timestamps are UTC** end-to-end. Floor to 15-min slots via
-  `floor_to_slot` so re-runs and the unique index agree.
+  `scraper.sat24_scraper.floor_to_slot` so re-runs and the unique index
+  agree on the same key.
 - **DB access** goes through helpers in `db/ingestion.py`. Don't open sessions
   at call sites — add a helper instead.
 - **Don't hard-code paths.** Read `config.DATA_DIR`, `config.MODEL_DIR`, etc.
@@ -108,9 +109,10 @@ python main.py serve            # http://127.0.0.1:8000/docs
 - VIS imagery is unusable at night — the scraper skips VIS tiles outside
   daylight via `pvlib`, and the model falls back to IR + NWP for nocturnal
   horizons.
-- Tile geo-referencing uses SlippyMap/TMS conventions. The `TILES` and
-  `ZONE_PIXEL_BBOXES` in `config.py` are placeholders — they need manual
-  inspection against real tiles to calibrate for production.
+- Tile geo-referencing uses SlippyMap/TMS conventions. `TILES` in
+  `config.py` and `ZONE_PIXEL_BBOXES` in `features/pipeline_worker.py`
+  are placeholders — they need manual inspection against real tiles to
+  calibrate for production.
 - Files on disk under `DATA_DIR` are the source of truth. The DB can be
   rebuilt from disk via a re-ingestion pass; the unique index on
   `(captured_at, channel, zoom_level, tile_x1, tile_y1)` makes it idempotent.

@@ -15,7 +15,8 @@ _Last updated: 2026-05-11._
 Tractable, low-risk improvements that unblock the rest of the roadmap.
 
 - [ ] Add a GitHub Actions workflow that runs `pytest` and `ruff check` on
-      every push and PR. Cache `pip` between runs.
+      every push and PR. Cache `pip` between runs. (Confirmed missing on
+      PR #4 — combined status returns 0 check runs.)
 - [ ] Replace `print(metrics.to_string(...))` in `cmd_train` (`main.py:96`)
       with structured logging.
 - [ ] Wire up `alembic` migrations. The dependency is already declared but
@@ -57,8 +58,9 @@ Blocked on collecting ≥ 90 days of real satellite + NWP data.
 - [ ] Calibrate `TILES` in `config.py` against real sat24 tiles for the
       target geographic area. Current values are educated guesses at
       zoom 5 over BE/NL/FR-nord.
-- [ ] Calibrate `ZONE_PIXEL_BBOXES` so each zone in `GRID_POINTS` maps to
-      the correct pixel sub-rectangle inside the assembled tile mosaic.
+- [ ] Calibrate `ZONE_PIXEL_BBOXES` in `features/pipeline_worker.py` so
+      each zone in `GRID_POINTS` maps to the correct pixel sub-rectangle
+      inside the assembled tile mosaic.
 
 ---
 
